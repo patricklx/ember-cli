@@ -1,53 +1,40 @@
 'use strict';
 
-var expect           = require('chai').expect;
-var commandOptions   = require('../../factories/command-options');
-var UninstallCommand = require('../../../lib/commands/uninstall-npm');
+const expect = require('../../chai').expect;
+const MockProject = require('../../helpers/mock-project');
+const commandOptions = require('../../factories/command-options');
+const UninstallNpmCommand = require('../../../lib/commands/uninstall-npm');
 
 describe('uninstall:npm command', function() {
-  var command, options, msg;
+  let command;
+
+  let msg =
+      'This command has been removed. Please use `npm uninstall ' +
+      '<packageName> --save-dev` instead.';
 
   beforeEach(function() {
-    options = commandOptions({
-      settings: {},
+    let project = new MockProject();
 
-      project: {
-        name: function() {
-          return 'some-random-name';
-        },
+    project.isEmberCLIProject = function() {
+      return true;
+    };
 
-        isEmberCLIProject: function() {
-          return true;
-        }
-      }
+    let options = commandOptions({
+      project,
     });
 
-    command  = new UninstallCommand(options);
-    msg      = 'This command has been removed Please use `npm uninstall ';
-    msg     += '<packageName> --save-dev` instead.';
+    command = new UninstallNpmCommand(options);
   });
 
-  describe('with no args', function() {
-    it('throws a friendly silent error', function() {
-      return command.validateAndRun([]).then(function() {
-        expect(false, 'should reject with error');
-      }).catch(function(err) {
-        expect(err.message).to.equal(
-          msg, 'expect error to have a helpful message'
-        );
-      });
+  it('throws a friendly silent error with no args', function() {
+    return expect(command.validateAndRun([])).to.be.rejected.then(error => {
+      expect(error.message).to.equal(msg, 'expect error to have a helpful message');
     });
   });
 
-  describe('with args', function() {
-    it('throws a friendly silent error', function() {
-      return command.validateAndRun(['moment', 'lodash']).then(function() {
-        expect(false, 'should reject with error');
-      }).catch(function(err) {
-        expect(err.message).to.equal(
-          msg, 'expect error to have a helpful message'
-        );
-      });
+  it('throws a friendly silent error with args', function() {
+    return expect(command.validateAndRun(['moment', 'lodash'])).to.be.rejected.then(error => {
+      expect(error.message).to.equal(msg, 'expect error to have a helpful message');
     });
   });
 });

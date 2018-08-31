@@ -1,14 +1,13 @@
 'use strict';
 
-var path    = require('path');
-var Promise = require('../../lib/ext/promise');
-var copy    = Promise.denodeify(require('cpr'));
+const fs = require('fs-extra');
+const path = require('path');
+const RSVP = require('rsvp');
 
-var rootPath = process.cwd();
+const copy = RSVP.denodeify(fs.copy);
+
+let rootPath = process.cwd();
 
 module.exports = function copyFixtureFiles(sourceDir) {
-  return copy(path.join(rootPath, 'tests', 'fixtures', sourceDir), '.', {
-    clobber: true,
-    stopOnErr: true
-  });
+  return copy(path.join(rootPath, 'tests', 'fixtures', sourceDir), '.', { overwrite: true });
 };

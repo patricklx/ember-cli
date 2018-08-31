@@ -1,28 +1,15 @@
-/*jshint strict:false */
-/* globals visit, andThen */
-
 import Ember from 'ember';
-import startApp from '../helpers/start-app';
+import { setupApplicationTest } from 'ember-qunit';
+import { visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 
-var application;
+module('default-development - Integration', function(hook) {
+  setupApplicationTest(hooks);
 
-module('default-development - Integration', {
-  beforeEach: function() {
-    application = startApp();
-  },
-  afterEach: function() {
-    Ember.run(application, 'destroy');
-  }
-});
+  test('renders properly', async function(assert) {
+    await visit('/');
 
-
-test('the application boots properly', function(assert) {
-  assert.expect(1);
-
-  visit('/');
-
-  andThen(function() {
-    assert.equal(Ember.$('#title').text(), 'Welcome to Ember');
+    var elements = this.element.querySelectorAll('.ember-view');
+    assert.ok(elements.length > 0);
   });
 });

@@ -1,64 +1,101 @@
 'use strict';
 
-var expect    = require('chai').expect;
-var MockUI    = require('../../helpers/mock-ui');
-var FileInfo  = require('../../../lib/models/file-info');
-var path      = require('path');
-var fs        = require('fs-extra');
-var EOL       = require('os').EOL;
-var Promise   = require('../../../lib/ext/promise');
-var writeFile = Promise.denodeify(fs.writeFile);
-var root       = process.cwd();
-var tmproot    = path.join(root, 'tmp');
-var tmp        = require('tmp-sync');
-var assign     = require('lodash/object/assign');
-var tmpdir;
-var testOutputPath;
+const expect = require('chai').expect;
+const MockUI = require('console-ui/mock');
+const FileInfo = require('../../../lib/models/file-info');
+const path = require('path');
+const fs = require('fs-extra');
+const EOL = require('os').EOL;
+const RSVP = require('rsvp');
+const mkTmpDirIn = require('../../../lib/utilities/mk-tmp-dir-in');
+const td = require('testdouble');
 
-describe('Unit - FileInfo', function(){
+const Promise = RSVP.Promise;
+const writeFile = RSVP.denodeify(fs.writeFile);
 
-  var validOptions, ui;
+let root = process.cwd();
+let tmproot = path.join(root, 'tmp');
 
-  beforeEach(function(){
-    tmpdir = tmp.in(tmproot);
-    testOutputPath = path.join(tmpdir, 'outputfile');
+describe('Unit - FileInfo', function() {
 
-    ui = new MockUI();
-    validOptions = {
-      action: 'write',
-      outputPath: testOutputPath,
-      displayPath: '/pretty-output-path',
-      inputPath: path.resolve(__dirname,
-        '../../fixtures/blueprints/with-templating/files/foo.txt'),
-      templateVariables: {},
-      ui: ui
-    };
+  let validOptions, ui, testOutputPath;
+
+  beforeEach(function() {
+    return mkTmpDirIn(tmproot).then(function(tmpdir) {
+      testOutputPath = path.join(tmpdir, 'outputfile');
+
+      ui = new MockUI();
+      td.replace(ui, 'prompt');
+
+      validOptions = {
+        action: 'write',
+        outputPath: testOutputPath,
+        displayPath: '/pretty-output-path',
+        inputPath: path.resolve(
+          __dirname,
+          '../../fixtures/blueprints/with-templating/files/foo.txt'),
+        templateVariables: {},
+        ui,
+      };
+    });
   });
 
-  afterEach(function(done){
+  afterEach(function(done) {
+    td.reset();
     fs.remove(tmproot, done);
   });
 
-  it('can instantiate with options', function(){
+  it('can instantiate with options', function() {
     new FileInfo(validOptions);
   });
 
-  it('renders an input file', function(){
-    validOptions.templateVariables.friend = 'Billy';
-    var fileInfo = new FileInfo(validOptions);
+  // eslint-disable-next-line no-template-curly-in-string
+  it('does not interpolate {{ }} or ${ }', function() {
+    let options = {};
+    Object.assign(options, validOptions, { inputPath: path.resolve(__dirname,
+      '../../fixtures/file-info/interpolate.txt'), templateVariables: { name: 'tacocat' } });
+    let fileInfo = new FileInfo(options);
+    return fileInfo.render().then(function(output) {
+      // eslint-disable-next-line no-template-curly-in-string
+      expect(output.trim()).to.equal('{{ name }} ${ name }  tacocat tacocat');
+    });
+  });
 
-    return fileInfo.render().then(function(output){
+  it('renders an input file', function() {
+    validOptions.templateVariables.friend = 'Billy';
+    let fileInfo = new FileInfo(validOptions);
+
+    return fileInfo.render().then(function(output) {
       expect(output.trim()).to.equal('Howdy Billy',
         'expects the template to have been run');
     });
   });
 
-  it('rejects if templating throws', function(){
-    var templateWithUndefinedVariable = path.resolve(__dirname,
+  it('allows mutation to the rendered file', function() {
+    validOptions.templateVariables.friend = 'Billy';
+    let fileInfo;
+
+    validOptions.replacer = function(content, theFileInfo) {
+      expect(theFileInfo).to.eql(fileInfo);
+      expect(content).to.eql('Howdy Billy\n');
+
+      return content.toUpperCase();
+    };
+
+    fileInfo = new FileInfo(validOptions);
+
+    return fileInfo.render().then(function(output) {
+      expect(output.trim()).to.equal('HOWDY BILLY',
+        'expects the template to have been run');
+    });
+  });
+
+  it('rejects if templating throws', function() {
+    let templateWithUndefinedVariable = path.resolve(__dirname,
       '../../fixtures/blueprints/with-templating/files/with-undefined-variable.txt');
-    var options = {};
-    assign(options, validOptions, { inputPath: templateWithUndefinedVariable });
-    var fileInfo = new FileInfo(options);
+    let options = {};
+    Object.assign(options, validOptions, { inputPath: templateWithUndefinedVariable });
+    let fileInfo = new FileInfo(options);
 
     return fileInfo.render().then(function() {
       throw new Error('FileInfo.render should reject if templating throws');
@@ -70,26 +107,26 @@ describe('Unit - FileInfo', function(){
   });
 
   it('does not explode when trying to template binary files', function() {
-    var binary = path.resolve(__dirname, '../../fixtures/problem-binary.png');
+    let binary = path.resolve(__dirname, '../../fixtures/problem-binary.png');
 
     validOptions.inputPath = binary;
 
-    var fileInfo = new FileInfo(validOptions);
+    let fileInfo = new FileInfo(validOptions);
 
-    return fileInfo.render().then(function(output){
+    return fileInfo.render().then(function(output) {
       expect(!!output, 'expects the file to be processed without error').to.equal(true);
     });
   });
 
-  it('renders a diff to the UI', function(){
+  it('renders a diff to the UI', function() {
     validOptions.templateVariables.friend = 'Billy';
-    var fileInfo = new FileInfo(validOptions);
+    let fileInfo = new FileInfo(validOptions);
 
-    return writeFile(testOutputPath, 'Something Old' + EOL).then(function(){
+    return writeFile(testOutputPath, `Something Old${EOL}`).then(function() {
       return fileInfo.displayDiff();
-    }).then(function(){
-      var output = ui.output.trim().split(EOL);
-      expect(output.shift()).to.equal('Index: ' + testOutputPath);
+    }).then(function() {
+      let output = ui.output.trim().split(EOL);
+      expect(output.shift()).to.equal(`Index: ${testOutputPath}`);
       expect(output.shift()).to.match(/=+/);
       expect(output.shift()).to.match(/---/);
       expect(output.shift()).to.match(/\+{3}/);
@@ -99,45 +136,68 @@ describe('Unit - FileInfo', function(){
     });
   });
 
-  it('renders a menu with an overwrite option', function(){
-    var fileInfo = new FileInfo(validOptions);
+  it('renders a menu with an overwrite option', function() {
+    td.when(ui.prompt(td.matchers.anything())).thenReturn(Promise.resolve({ answer: 'overwrite' }));
 
-    ui.waitForPrompt().then(function(){
-      ui.inputStream.write('Y' + EOL);
-    });
+    let fileInfo = new FileInfo(validOptions);
 
-    return fileInfo.confirmOverwrite().then(function(action){
-      var output = ui.output.trim().split(EOL);
-      expect(output.shift()).to.match(/Overwrite.*\?/);
+    return fileInfo.confirmOverwrite('test.js').then(function(action) {
+      td.verify(ui.prompt(td.matchers.anything()), { times: 1 });
       expect(action).to.equal('overwrite');
     });
   });
 
-  it('renders a menu with an skip option', function(){
-    var fileInfo = new FileInfo(validOptions);
+  it('renders a menu with a skip option', function() {
+    td.when(ui.prompt(td.matchers.anything())).thenReturn(Promise.resolve({ answer: 'skip' }));
 
-    ui.waitForPrompt().then(function(){
-      ui.inputStream.write('n' + EOL);
-    });
+    let fileInfo = new FileInfo(validOptions);
 
-    return fileInfo.confirmOverwrite().then(function(action){
-      var output = ui.output.trim().split(EOL);
-      expect(output.shift()).to.match(/Overwrite.*\?/);
+    return fileInfo.confirmOverwrite('test.js').then(function(action) {
+      td.verify(ui.prompt(td.matchers.anything()), { times: 1 });
       expect(action).to.equal('skip');
     });
   });
 
-  it('renders a menu with an diff option', function(){
-    var fileInfo = new FileInfo(validOptions);
+  it('renders a menu with a diff option', function() {
+    td.when(ui.prompt(td.matchers.anything())).thenReturn(Promise.resolve({ answer: 'diff' }));
 
-    ui.waitForPrompt().then(function(){
-      ui.inputStream.write('d' + EOL);
-    });
+    let fileInfo = new FileInfo(validOptions);
 
-    return fileInfo.confirmOverwrite().then(function(action){
-      var output = ui.output.trim().split(EOL);
-      expect(output.shift()).to.match(/Overwrite.*\?/);
+    return fileInfo.confirmOverwrite('test.js').then(function(action) {
+      td.verify(ui.prompt(td.matchers.anything()), { times: 1 });
       expect(action).to.equal('diff');
+    });
+  });
+
+  it('renders a menu without diff and edit options when dealing with binary files', function() {
+    td.when(ui.prompt(td.matchers.anything())).thenReturn(Promise.resolve({ answer: 'skip' }));
+
+    let binary = path.resolve(__dirname, '../../fixtures/problem-binary.png');
+    validOptions.inputPath = binary;
+    let fileInfo = new FileInfo(validOptions);
+
+    return fileInfo.confirmOverwrite('test.png').then(function(/* action */) {
+      td.verify(ui.prompt(td.matchers.argThat(function(options) {
+        return (
+          options.choices.length === 2 &&
+          options.choices[0].key === 'y' &&
+          options.choices[1].key === 'n'
+        );
+      })));
+    });
+  });
+
+  it('normalizes line endings before comparing files', function() {
+    if (EOL === '\n') {
+      return;
+    }
+
+    validOptions.inputPath = path.resolve(__dirname, '../../fixtures/file-info/test_crlf.js');
+    validOptions.outputPath = path.resolve(__dirname, '../../fixtures/file-info/test_lf.js');
+    let fileInfo = new FileInfo(validOptions);
+
+    return fileInfo.checkForConflict().then(function(type) {
+      expect(type).to.equal('identical');
     });
   });
 

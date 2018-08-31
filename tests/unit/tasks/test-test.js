@@ -1,38 +1,51 @@
 'use strict';
 
-var expect      = require('chai').expect;
-var TestTask    = require('../../../lib/tasks/test');
-var MockProject = require('../../helpers/mock-project');
+const expect = require('chai').expect;
+const TestTask = require('../../../lib/tasks/test');
+const MockProject = require('../../helpers/mock-project');
 
-describe('test', function() {
-  var subject;
+describe('test task test', function() {
+  let subject;
 
-  it('transforms the options and invokes testem properly', function() {
+  it('transforms options for testem configuration', function() {
     subject = new TestTask({
       project: new MockProject(),
-      addonMiddlewares: function() {
+      addonMiddlewares() {
         return ['middleware1', 'middleware2'];
       },
-      testem: {
-        startCI: function(options, cb) {
-          expect(options.file).to.equal('blahzorz.conf');
-          expect(options.host).to.equal('greatwebsite.com');
-          expect(options.port).to.equal(123324);
-          expect(options.cwd).to.equal('blerpy-derpy');
-          expect(options.reporter).to.equal('xunit');
-          expect(options.middleware).to.deep.equal(['middleware1', 'middleware2']);
-          cb(0);
-        },
-        app: { reporter: { total: 1 } }
-      }
+
+      invokeTestem(options) {
+        // cwd and config_dir are not passed to testem progOptions
+        let testemOptions = this.transformOptions(options);
+        expect(testemOptions.host).to.equal('greatwebsite.com');
+        expect(testemOptions.port).to.equal(123324);
+        expect(testemOptions.cwd).to.be.undefined;
+        expect(testemOptions.reporter).to.equal('xunit');
+        expect(testemOptions.middleware).to.deep.equal(['middleware1', 'middleware2']);
+        expect(testemOptions.test_page).to.equal('http://my/test/page');
+        expect(testemOptions.config_dir).to.be.undefined;
+
+        // cwd and config_dir are present as part of default options.
+        let defaultOptions = this.defaultOptions(options);
+        expect(defaultOptions.host).to.equal('greatwebsite.com');
+        expect(defaultOptions.port).to.equal(123324);
+        expect(defaultOptions.cwd).to.equal('blerpy-derpy');
+        expect(defaultOptions.reporter).to.equal('xunit');
+        expect(defaultOptions.middleware).to.deep.equal(['middleware1', 'middleware2']);
+        expect(defaultOptions.test_page).to.equal('http://my/test/page');
+        expect(defaultOptions.config_dir).to.be.an('string');
+
+      },
     });
 
     subject.run({
-      configFile: 'blahzorz.conf',
       host: 'greatwebsite.com',
       port: 123324,
       reporter: 'xunit',
-      outputPath: 'blerpy-derpy'
+      outputPath: 'blerpy-derpy',
+      testemDebug: 'testem.log',
+      testPage: 'http://my/test/page',
+      configFile: 'custom-testem-config.json',
     });
   });
 });

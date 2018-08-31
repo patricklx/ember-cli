@@ -1,86 +1,90 @@
 'use strict';
 
-var DestroyCommand  = require('../../../lib/commands/destroy');
-var Promise         = require('../../../lib/ext/promise');
-var Task            = require('../../../lib/models/task');
-var expect          = require('chai').expect;
-var commandOptions  = require('../../factories/command-options');
+const expect = require('chai').expect;
+const EOL = require('os').EOL;
+const MockProject = require('../../helpers/mock-project');
+const processHelpString = require('../../helpers/process-help-string');
+const commandOptions = require('../../factories/command-options');
+const Promise = require('rsvp').Promise;
+const Task = require('../../../lib/models/task');
+const DestroyCommand = require('../../../lib/commands/destroy');
 
-describe('generate command', function() {
-  var command;
+describe('destroy command', function() {
+  let options, command, project;
 
   beforeEach(function() {
-    command = new DestroyCommand(commandOptions({
-      settings: {},
+    project = new MockProject();
 
-      project:   {
-        name: function() {
-          return 'some-random-name';
-        },
+    project.isEmberCLIProject = function() {
+      return true;
+    };
 
-        isEmberCLIProject: function isEmberCLIProject() {
-          return true;
-        }
-      },
-
+    options = commandOptions({
+      project,
       tasks: {
         DestroyFromBlueprint: Task.extend({
-          run: function(options) {
+          project,
+          run(options) {
             return Promise.resolve(options);
-          }
-        })
-      }
-    }));
+          },
+        }),
+      },
+    });
+
+    command = new DestroyCommand(options);
   });
 
   it('runs DestroyFromBlueprint with expected options', function() {
     return command.validateAndRun(['controller', 'foo'])
       .then(function(options) {
-        expect(options.dryRun, false);
-        expect(options.verbose, false);
+        expect(options.dryRun).to.be.false;
+        expect(options.verbose).to.be.false;
         expect(options.args).to.deep.equal(['controller', 'foo']);
       });
   });
 
   it('complains if no entity name is given', function() {
-    return command.validateAndRun(['controller'])
-      .then(function() {
-        expect(false, 'should not have called run');
-      })
-      .catch(function(error) {
-        expect(error.message).to.equal(
-            'The `ember destroy` command requires an ' +
-            'entity name to be specified. ' +
-            'For more details, use `ember help`.');
-      });
+    return expect(command.validateAndRun(['controller'])).to.be.rejected.then(error => {
+      expect(error.message).to.equal(
+        'The `ember destroy` command requires an ' +
+        'entity name to be specified. ' +
+        'For more details, use `ember help`.');
+    });
   });
 
   it('complains if no blueprint name is given', function() {
-    return command.validateAndRun([])
-      .then(function() {
-        expect(false, 'should not have called run');
-      })
-      .catch(function(error) {
-        expect(error.message).to.equal(
-            'The `ember destroy` command requires a ' +
-            'blueprint name to be specified. ' +
-            'For more details, use `ember help`.');
-      });
+    return expect(command.validateAndRun([])).to.be.rejected.then(error => {
+      expect(error.message).to.equal(
+        'The `ember destroy` command requires a ' +
+        'blueprint name to be specified. ' +
+        'For more details, use `ember help`.');
+    });
   });
 
-  it('does not throws errors when beforeRun is invoked without the blueprint name', function() {
-    expect(function () {
+  it('does not throw errors when beforeRun is invoked without the blueprint name', function() {
+    expect(() => {
       command.beforeRun([]);
     }).to.not.throw();
   });
 
   it('rethrows errors from beforeRun', function() {
-    return Promise.resolve(function(){ return command.beforeRun(['controller', 'foo']);})
-    .then(function() {
-      expect(false, 'should not have called run');
-    })
-    .catch(function(error) {
-      expect(error.message).to.equal('undefined is not a function');
+    project.blueprintLookupPaths = undefined;
+
+    expect(() => {
+      command.beforeRun(['controller', 'foo']);
+    }).to.throw(/(is not a function)|(has no method)/);
+  });
+
+  describe('help', function() {
+    it('prints extra info', function() {
+      command.printDetailedHelp();
+
+      let output = options.ui.output;
+
+      let testString = processHelpString(`${EOL}\
+  Run \`ember help generate\` to view a list of available blueprints.${EOL}`);
+
+      expect(output).to.equal(testString);
     });
   });
 });

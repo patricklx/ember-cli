@@ -1,7 +1,5 @@
-/*jshint strict:false */
-/* globals QUnit */
+import { test } from 'qunit';
 
-QUnit.test('syntax error', function(assert) {
+test('syntax error', function(assert) {
   # syntax error
 });
-

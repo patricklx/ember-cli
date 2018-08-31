@@ -9,11 +9,15 @@ improve documentation or work on any of the features on the
 This is the issue tracker for `ember-cli`. The community uses this site
 to collect and track bugs and discussions of new features. If you are
 having difficulties using `ember-cli` or have a question about usage
-please ask a question on Stack Overflow: http://stackoverflow.com/questions/ask?tags=ember-cli
+please ask a question on Stack Overflow: https://stackoverflow.com/questions/ask?tags=ember-cli
 
 # Issues
 
 Think you've found a bug or have a new feature to suggest? Let us know!
+
+## Slow builds?
+
+Please be sure to review [The Perf Guide](https://github.com/ember-cli/ember-cli/blob/master/PERF_GUIDE.md) (and implement its recommendations) before posting an issue.
 
 ## Reporting a Bug
 
@@ -40,7 +44,23 @@ Think you've found a bug or have a new feature to suggest? Let us know!
 The more information you provide, the easier it is for us to validate that
 there is a bug and the faster we'll be able to take action.
 
+Be sure to include (At the very least):
+
+* OS
+* npm version
+* ember version
+* clear steps to reproduction
+
+And ideally
+
+* an isolated demonstration of this issue as a github repo
+
 ## Requesting a Feature
+
+Feature requests are handled via https://github.com/ember-cli/rfcs
+
+* issues are eargley stage requests/proposals
+* rfcs as pull requests are for fleshing out details
 
 1. Search Issues for similar feature requests. It's possible somebody has
    already asked for this feature or provided a pull request that we're still
@@ -68,12 +88,12 @@ We love pull requests. Here's a quick guide:
 
 2. Ensure you have the development requirements:
 
-   * node (0.12 recommended) or io.js (1.x) -- *do not install node using sudo*
-   * npm (2.x)
-   * phantomjs
+   * node (latest LTS recommended) -- *do not install node using sudo*
+   * npm (3.x)
+   * google chrome
 
 3. Run the tests. We only take pull requests with passing tests, and it's great
-   to know that you have a clean slate: `npm install && npm run test-all`.
+   to know that you have a clean slate: `npm install && npm run test:all`.
 
 4. Add a test for your change. Only refactoring and documentation changes
    require no new tests. If you are adding functionality or fixing a bug, we
@@ -140,8 +160,8 @@ updating or writing new documentation:
 
 #### Website
 
-The codebase for the website [ember-cli.com](http://ember-cli.com) is located
-at: https://github.com/ember-cli/ember-cli/tree/gh-pages
+The codebase for the website [ember-cli.com](https://ember-cli.com) is located
+at: https://github.com/ember-cli/ember-cli.github.io
 
 #### Code Words
 
@@ -153,13 +173,41 @@ at: https://github.com/ember-cli/ember-cli/tree/gh-pages
 
 And in case we didn't emphasize it enough: **we love tests!**
 
+#### Testing
+
+Testing is done with mocha. You can invoke the tests by running `npm test` or `npm run-script
+test-all`. Both scripts are running `node tests/runner` may be with additional params. To contribute
+with a test, write your test and add `.only` to it's `describe` or `it` block. E.g.
+
+```javascript
+describe.only("My new feature", function() {
+  it("is neat", function() {
+    //...
+  });
+});
+```
+
+Then simply run `npm test` for your test to run. If the test(s) pass and you are happy with the
+result, remove the `.only` and run the whole suite again, in order to make sure that you didn't
+break anything.
+
 NOTE: Partially copied from https://raw.githubusercontent.com/emberjs/ember.js/master/CONTRIBUTING.md
+
+#### Experiments
+
+A new feature may require putting the changes behind an experiment. More
+information can be found at
+[Experiments](https://github.com/ember-cli/ember-cli/blob/master/docs/experiments.md).
+
+# Code Climate
+
+We can always use help improving our [Code Climate](https://codeclimate.com/github/ember-cli/ember-cli) score.
 
 # Docs
 
 Have you got enough knowledge in a specific feature and want to help with docs?
-Ember-cli documentation lives at the branch
-[gh-pages](https://github.com/ember-cli/ember-cli/tree/gh-pages).
+Ember-cli documentation lives at the repository
+[ember-cli.github.io](https://github.com/ember-cli/ember-cli.github.io).
 
 Feel free to contribute and help us to keep an updated, clear and complete
 documentation.

@@ -1,49 +1,70 @@
 'use strict';
 
-var Project = require('../../lib/models/project');
+const Project = require('../../lib/models/project');
+const Instrumentation = require('../../lib/models/instrumentation');
+const MockUI = require('console-ui/mock');
 
-function MockProject() {
-  var root = process.cwd();
-  var pkg  = {};
-  Project.apply(this, [root, pkg]);
-}
+// eslint-disable-next-line node/no-unpublished-require
 
-MockProject.prototype.require = function(file) {
-  if (file === './server') {
-    return function() {
-      return {
-        listen: function() { arguments[arguments.length-1](); }
+class MockProject extends Project {
+  constructor() {
+    let root = process.cwd();
+    let pkg = {};
+    let ui = new MockUI();
+    let instr = new Instrumentation({
+      ui,
+      initInstrumentation: {
+        token: null,
+        node: null,
+      },
+    });
+    let cli = {
+      instrumentation: instr,
+    };
+
+    super(root, pkg, ui, cli);
+  }
+
+  require(file) {
+    if (file === './server') {
+      return function() {
+        return {
+          listen() { arguments[arguments.length - 1](); },
+        };
       };
+    }
+  }
+
+  config() {
+    return this._config || {
+      baseURL: '/',
+      locationType: 'auto',
     };
   }
-};
 
-MockProject.prototype.config = function() {
-  return this._config || {
-    baseURL: '/',
-    locationType: 'auto'
-  };
-};
+  has(key) {
+    return (/server/.test(key));
+  }
 
-MockProject.prototype.has = function(key) {
-  return (/server/.test(key));
-};
+  name() {
+    return 'mock-project';
+  }
 
-MockProject.prototype.name = function() {
-  return 'mock-project';
-};
+  hasDependencies() {
+    return true;
+  }
 
-MockProject.prototype.initializeAddons = Project.prototype.initializeAddons;
-MockProject.prototype.discoverAddons = Project.prototype.discoverAddons;
-MockProject.prototype.addIfAddon = Project.prototype.addIfAddon;
-MockProject.prototype.supportedInternalAddonPaths = Project.prototype.supportedInternalAddonPaths;
-MockProject.prototype.setupBowerDirectory = Project.prototype.setupBowerDirectory;
-MockProject.prototype.setupNodeModulesPath = Project.prototype.setupNodeModulesPath;
-MockProject.prototype.dependencies = function() {
-  return [];
-};
-MockProject.prototype.isEmberCLIAddon = function() {
-  return false;
-};
+  dependencies() {
+    return [];
+  }
+
+  isEmberCLIAddon() {
+    return false;
+  }
+
+  isModuleUnification() {
+    return false;
+  }
+}
 
 module.exports = MockProject;

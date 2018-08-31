@@ -1,5 +1,5 @@
-import Ember from 'ember';
+import Component from '@ember/component';
 
-export default Ember.Component.extend({
-  foo: /__SECOND_PREPROCESSOR_REPLACEMENT_TOKEN__/ //jshint ignore:line
+export default Component.extend({
+  foo: /__SECOND_PREPROCESSOR_REPLACEMENT_TOKEN__/
 });

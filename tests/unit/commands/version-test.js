@@ -1,48 +1,42 @@
 'use strict';
 
-var expect         = require('chai').expect;
-var commandOptions = require('../../factories/command-options');
-var VersionCommand = require('../../../lib/commands/version');
-var MockUI         = require('../../helpers/mock-ui');
-var EOL            = require('os').EOL;
+const expect = require('chai').expect;
+const EOL = require('os').EOL;
+const commandOptions = require('../../factories/command-options');
+const VersionCommand = require('../../../lib/commands/version');
 
 describe('version command', function() {
-  var ui, command, options;
+  let options, command;
 
   beforeEach(function() {
-    ui = new MockUI();
     options = commandOptions({
-      settings: {},
-
-      ui: ui,
-
       project: {
-        isEmberCLIProject: function() {
+        isEmberCLIProject() {
           return false;
-        }
-      }
+        },
+      },
     });
 
     command = new VersionCommand(options);
   });
 
-  it('reports node and npm versions', function() {
+  it('reports node, npm, and os versions', function() {
     return command.validateAndRun().then(function() {
-      var lines = ui.output.split(EOL);
-      expect(someLineStartsWith(lines, 'node:'), 'contains the version of node');
-      expect(someLineStartsWith(lines, 'npm:'), 'contains the version of npm');
+      let lines = options.ui.output.split(EOL);
+      expect(someLineStartsWith(lines, 'ember-cli:'), 'contains the version of ember-cli').to.be.ok;
+      expect(someLineStartsWith(lines, 'node:'), 'contains the version of node').to.be.ok;
+      expect(someLineStartsWith(lines, 'os:'), 'contains the version of os').to.be.ok;
     });
   });
 
   it('supports a --verbose flag', function() {
     return command.validateAndRun(['--verbose']).then(function() {
-      var lines = ui.output.split(EOL);
-      expect(someLineStartsWith(lines, 'node:'), 'contains the version of node');
-      expect(someLineStartsWith(lines, 'npm:'), 'contains the version of npm');
-      expect(someLineStartsWith(lines, 'v8:'), 'contains the version of v8');
+      let lines = options.ui.output.split(EOL);
+      expect(someLineStartsWith(lines, 'node:'), 'contains the version of node').to.be.ok;
+      expect(someLineStartsWith(lines, 'os:'), 'contains the version of os').to.be.ok;
+      expect(someLineStartsWith(lines, 'v8:'), 'contains the version of v8').to.be.ok;
     });
   });
-
 });
 
 function someLineStartsWith(lines, search) {

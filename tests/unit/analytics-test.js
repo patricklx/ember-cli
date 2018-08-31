@@ -1,38 +1,42 @@
 'use strict';
 
-var expect  = require('chai').expect;
-var Command = require('../../lib/models/command');
-var MockUI = require('../helpers/mock-ui');
-var command;
-var called = false;
-
-beforeEach(function() {
-  var analytics = {
-    track: function() {
-      called = true;
-    }
-  };
-
-  var FakeCommand = Command.extend({
-    name: 'fake-command',
-    run: function() {}
-  });
-
-  command = new FakeCommand({
-    ui: new MockUI(),
-    analytics: analytics,
-    project: { isEmberCLIProject: function(){ return true; }}
-  });
-});
-
-afterEach(function() {
-  command = null;
-});
+const expect = require('chai').expect;
+const Command = require('../../lib/models/command');
+const MockUI = require('console-ui/mock');
+const MockProject = require('../helpers/mock-project');
+let command;
+let called = false;
 
 describe('analytics', function() {
+  beforeEach(function() {
+    let analytics = {
+      track() {
+        called = true;
+      },
+    };
+
+    let FakeCommand = Command.extend({
+      name: 'fake-command',
+      run() {},
+    });
+
+    let project = new MockProject();
+    project.isEmberCLIProject = function() { return true; };
+
+    command = new FakeCommand({
+      ui: new MockUI(),
+      analytics,
+      project,
+    });
+  });
+
+  afterEach(function() {
+    command = null;
+  });
+
   it('track gets invoked on command.validateAndRun()', function() {
     return command.validateAndRun([]).then(function() {
-      expect(called, 'expected analytics.track to be called');
+      expect(called, 'expected analytics.track to be called').to.be.true;
     });
   });
 });

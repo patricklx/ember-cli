@@ -1,6 +1,4 @@
-/* global require, module */
-
-var EmberApp = require('ember-cli/lib/broccoli/ember-app');
+const EmberApp = require('ember-cli/lib/broccoli/ember-app');
 
 module.exports = function (defaults) {
   var app = new EmberApp(defaults, {
@@ -19,7 +17,10 @@ module.exports = function (defaults) {
       },
       testSupport: {
         css: '/css/test-support.css',
-        js: '/js/test-support.js'
+        js: {
+          testSupport: '/js/test-support.js',
+          testLoader: '/js/test-loader.js'
+        }
       }
     }
   });

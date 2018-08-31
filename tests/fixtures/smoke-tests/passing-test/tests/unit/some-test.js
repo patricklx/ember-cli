@@ -1,7 +1,5 @@
-/*jshint strict:false */
-/* globals QUnit */
+import { test } from 'qunit';
 
-QUnit.test('passing test', function(assert) {
+test('passing test', function(assert) {
   assert.ok(true, 'test should pass');
 });
-

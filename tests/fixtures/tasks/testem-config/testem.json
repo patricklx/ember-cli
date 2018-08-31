@@ -2,10 +2,18 @@
   "framework": "qunit",
   "test_page": "tests/index.html",
   "launch_in_ci": [
-    "PhantomJS"
+    "Chrome"
   ],
   "launch_in_dev": [
-    "PhantomJS",
     "Chrome"
-  ]
+  ],
+  "browser_args": {
+    "Chrome": [
+      "--no-sandbox",
+      "--disable-gpu",
+      "--headless",
+      "--remote-debugging-port=0",
+      "--window-size=1440,900"
+    ]
+  }
 }

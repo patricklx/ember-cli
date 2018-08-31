@@ -1,63 +1,71 @@
 'use strict';
 
-var glob = require('glob');
-var Mocha = require('mocha');
-var RSVP = require('rsvp');
-var mochaOnlyDetector = require('mocha-only-detector');
+const captureExit = require('capture-exit');
+captureExit.captureExit();
+
+const glob = require('glob');
+const Mocha = require('mocha');
+const RSVP = require('rsvp');
+const fs = require('fs-extra');
 
 if (process.env.EOLNEWLINE) {
   require('os').EOL = '\n';
 }
 
-var root = 'tests/{unit,acceptance}';
-var _checkOnlyInTests = RSVP.denodeify(mochaOnlyDetector.checkFolder.bind(null, root + '/**/*{-test,-slow}.js'));
-var optionOrFile = process.argv[2];
-var mocha = new Mocha({
+fs.removeSync('.deps-tmp');
+
+let root = 'tests/{unit,integration,acceptance}';
+let optionOrFile = process.argv[2];
+// default to `tap` reporter in CI otherwise default to `spec`
+let reporter = process.env.MOCHA_REPORTER || (process.env.CI ? 'tap' : 'spec');
+let mocha = new Mocha({
   timeout: 5000,
-  reporter: 'spec'
+  reporter,
+  retries: 2,
 });
+let testFiles = glob.sync(`${root}/**/*-test.js`);
+let lintPosition = testFiles.indexOf('tests/unit/lint-test.js');
+let lint = testFiles.splice(lintPosition, 1);
+let docsLintPosition = testFiles.indexOf('tests/unit/docs-lint-test.js');
+let docsLint = testFiles.splice(docsLintPosition, 1);
+
+testFiles = lint.concat(docsLint).concat(testFiles);
 
 if (optionOrFile === 'all') {
-  addFiles(mocha, '/**/*-test.js');
+  addFiles(mocha, testFiles);
   addFiles(mocha, '/**/*-slow.js');
-} else if (optionOrFile)  {
-  mocha.addFile(optionOrFile);
+} else if (optionOrFile === 'slow') {
+  addFiles(mocha, '/**/*-slow.js');
+} else if (optionOrFile === 'lint') {
+  addFiles(mocha, lint);
+  addFiles(mocha, docsLint);
+} else if (process.argv.length > 2) {
+  addFiles(mocha, process.argv.slice(2));
 } else {
-  addFiles(mocha, '/**/*-test.js');
+  addFiles(mocha, testFiles);
 }
 
 function addFiles(mocha, files) {
-  glob.sync(root + files).forEach(mocha.addFile.bind(mocha));
-}
-
-function checkOnlyInTests() {
-  console.log('Verifing `.only` in tests');
-  return _checkOnlyInTests().then(function() {
-    console.log('No `.only` found');
-  });
+  files = (typeof files === 'string') ? glob.sync(root + files) : files;
+  files.forEach(mocha.addFile.bind(mocha));
 }
 
 function runMocha() {
-  mocha.run(function(failures) {
-    process.on('exit', function() {
-      process.exit(failures);
-    });
+  console.time('Mocha Tests Running Time');
+  mocha.run(failures => {
+    console.timeEnd('Mocha Tests Running Time');
+
+    // eslint-disable-next-line no-process-exit
+    process.exit(failures);
   });
 }
 
-function ciVerificationStep() {
-  if (process.env.CI === 'true') {
-    return checkOnlyInTests();
-  } else {
-    return RSVP.resolve();
-  }
-}
-
-ciVerificationStep()
-  .then(function() {
-    runMocha();
-  })
-  .catch(function(error) {
+RSVP.resolve()
+  .then(() => runMocha())
+  .catch(error => {
     console.error(error);
+    console.error(error.stack);
+
+    // eslint-disable-next-line no-process-exit
     process.exit(1);
   });

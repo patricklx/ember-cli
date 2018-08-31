@@ -1,32 +1,22 @@
 import Ember from 'ember';
-import startApp from '../helpers/start-app';
+import { setupApplicationTest } from 'ember-qunit';
+import { visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 
-var application;
+module('Acceptance', function(hooks) {
+  setupApplicationTest(hooks);
 
-module('Acceptance', {
-  beforeEach: function() {
-    application = startApp();
-  },
-  afterEach: function() {
-    Ember.run(application, 'destroy');
-  }
-});
+  test('renders properly', async function(assert) {
+    await visit('/');
 
-test('renders properly', function(assert) {
-  visit('/');
-
-  andThen(function() {
-    var element = find('.basic-thing');
-    assert.equal(element.first().text().trim(), 'WOOT!!');
+    var element = this.element.querySelector('.basic-thing');
+    assert.equal(element.textContent.trim(), 'WOOT!!');
   });
-});
 
-test('renders imported component', function(assert) {
-  visit('/');
+  test('renders imported component', async function(assert) {
+    await visit('/');
 
-  andThen(function() {
-    var element = find('.second-thing');
-    assert.equal(element.first().text().trim(), 'SECOND!!');
+    var element = this.element.querySelector('.second-thing');
+    assert.equal(element.textContent.trim(), 'SECOND!!');
   });
 });

@@ -1,22 +1,21 @@
 'use strict';
 
-var fs         = require('fs-extra');
-var existsSync = require('exists-sync');
+const fs = require('fs-extra');
 
 function touch(path, obj) {
-  if (!existsSync(path)) {
+  if (!fs.existsSync(path)) {
     fs.createFileSync(path);
     fs.writeJsonSync(path, obj || {});
   }
 }
 
 function replaceFile(path, findString, replaceString) {
-  if (existsSync(path)) {
-    var newFile;
-    var file = fs.readFileSync(path, 'utf-8');
-    var find = new RegExp(findString);
-    var match = new RegExp(replaceString);
-    if (!file.match(match)) {
+  if (fs.existsSync(path)) {
+    let newFile;
+    let file = fs.readFileSync(path, 'utf-8');
+    let find = new RegExp(findString);
+    let match = new RegExp(replaceString);
+    if (!match.test(file)) {
       newFile = file.replace(find, replaceString);
       fs.writeFileSync(path, newFile, 'utf-8');
     }
@@ -24,6 +23,6 @@ function replaceFile(path, findString, replaceString) {
 }
 
 module.exports = {
-  touch:       touch,
-  replaceFile: replaceFile
+  touch,
+  replaceFile,
 };

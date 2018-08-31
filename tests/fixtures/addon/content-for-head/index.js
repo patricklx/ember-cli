@@ -1,7 +1,7 @@
 module.exports = {
-  name: 'content-for-head',
+  name: require('./package').name,
 
-  contentFor: function(type, config) {
+  contentFor(type, config) {
     return '"SOME AWESOME STUFF"';
   }
 };

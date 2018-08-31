@@ -1,18 +1,7 @@
-import Ember from 'ember';
-import { module, test } from 'qunit';
-import startApp from 'my-app/tests/helpers/start-app';
+import { test } from 'qunit';
+import moduleForAcceptance from 'my-app/tests/helpers/module-for-acceptance';
 
-var application;
-
-module('Acceptance | foo', {
-  beforeEach: function() {
-    application = startApp();
-  },
-
-  afterEach: function() {
-    Ember.run(application, 'destroy');
-  }
-});
+moduleForAcceptance('Acceptance | foo');
 
 test('visiting /foo', function(assert) {
   visit('/foo');

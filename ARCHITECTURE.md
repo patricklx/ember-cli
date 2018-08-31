@@ -1,6 +1,6 @@
 ## Architecture
 
-![embercli architecture](./assets/architecture/Ember-CLI architecture.png)
+![embercli architecture](./assets/architecture/Ember-CLI%20architecture.png)
 
 ## Overview
 - **cli** parses args and calls the respective **command**
@@ -13,7 +13,7 @@ cli is a small function that gets everything going.
 
 Usage:
 ``` JavaScript
-var cli = require('./cli');
+let cli = require('./cli');
 
 cli({
   cliArgs: argv, // Required
@@ -24,7 +24,7 @@ cli({
 ```
 
 ## UI
-In ember-cli we pass an `UI` instance around. Instead of calling
+In ember-cli we pass a `UI` instance around. Instead of calling
 `console.log` or writing things directly to `process.stdout` we access
 those through this wrapper. This makes our code testing friendly
 because it lets us simulate user input and it lets us verify if the output
@@ -56,7 +56,7 @@ command `develop-ember-cli`):
 ``` JavaScript
 // e.g. commands/develop-ember-cli.js
 
-var Command = require('../models/command');
+let Command = require('../models/command');
 
 module.exports = Command.extend({
   name: 'develop-ember-cli',    // Optional, default is the filename
@@ -85,13 +85,13 @@ module.exports = Command.extend({
     ...
   ],
 
-  run: function(options) { // Required
+  run(options) { // Required
     // options === { packageName, ... }
 
     // Run tasks and return a promise
   },
 
-  printDetailedHelp: function() { // Optional
+  printDetailedHelp() { // Optional
     this.ui.write('Detailed help...');
   }
 });
@@ -163,10 +163,10 @@ The file format of a task looks like this:
 ``` JavaScript
 // tasks/npm-install.js
 
-var Task = require('../task');
+let Task = require('../task');
 
 module.exports = Task.extend({
-  run: function(options) {
+  run(options) {
     // return promise
   }
 });
@@ -181,7 +181,6 @@ module.exports = Task.extend({
 ```
 
 ## Style guide
-- Everything Promise based ( use: lib/ext/promise)
 - Everything async (except require)
 - Short files
 - Tests, tests, tests
@@ -202,19 +201,14 @@ module.exports = Task.extend({
     - Okay: `url`, `id`, `rootURL` (property) or `URL`, `URLParser` (class)
     - Wrong: `Url`,`rootUrl`
     - We stick with how it's done in ember -> `rootURL`
-- No comma separated var statements (`var cool = 123, supercool = 456;`)
+- No comma separated assignment statements (`let cool = 123, supercool = 456;`)
 - Line break at the end of every file
 - Make constructors take an options object to avoid order-dependence
 
-This list only contains style decisions not already covered by JSHint (e.g.
+This list only contains style decisions not already covered by ESLint (e.g.
 mandatory semicolons and other rules are omitted).
 
 ### Indentation
-#### Aligned require statements
-``` JavaScript
-var RSVP    = require('rsvp');
-var Promise = RSVP.Promise;
-```
 
 #### Multi-line return statement
 ``` JavaScript
@@ -261,7 +255,7 @@ Also a `message` property should be set: Either in the constructor or as a prope
 When requiring modules, we should be aware of their effect on startup
 time. If they introduce a noticeable penalty, and are not needed except
 for some task/command we should require them lazily. Obviously a few
-small modules wont make a difference, but eagerly requiring npm + bower
+small modules won't make a difference, but eagerly requiring npm + bower
 and all of lodash will add a second to startup time.
 
 The following example eagerly requires npm, but only truly requires it
@@ -269,10 +263,10 @@ when that task is invoked, not for `ember help` `ember version` or even
 `ember server`. This introduces a 200ms-300ms startup penalty.
 
 ```js
-var npm = require('npm');
+let npm = require('npm');
 
 module.exports = Task.extend({
-  run: function() {
+  run() {
     npm.install() // or something
   }
 });
@@ -287,17 +281,17 @@ example:
 
 ```js
 module.exports = Task.extend({
-  init: function() {
+  init() {
     this.npm = this.npm || require('npm');
   },
-  run: function() {
+  run() {
     this.npm.install() // or something
   }
 });
 ```
 
 ### Sync vs async
-Since [JavaScript uses an event loop](http://nodejs.org/about/), the use of
+Since [JavaScript uses an event loop](https://nodejs.org/about/), the use of
 blocking and compute intensive operations is discouraged. The general
 recommendation is to use asynchronous operations.
 

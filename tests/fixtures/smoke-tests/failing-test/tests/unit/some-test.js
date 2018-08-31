@@ -1,7 +1,5 @@
-/*jshint strict:false */
-/* globals QUnit */
+import { test } from 'qunit';
 
-QUnit.test('failing test', function(assert) {
+test('failing test', function(assert) {
   assert.ok(false, 'test should fail to confirm ember test exit code');
 });
-

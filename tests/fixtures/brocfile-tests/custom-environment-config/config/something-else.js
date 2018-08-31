@@ -3,6 +3,9 @@ module.exports = function() {
     modulePrefix: 'some-cool-app',
     fileUsed: 'config/something-else.js',
     baseURL: '/',
-    locationType: 'auto'
+    locationType: 'auto',
+    APP: {
+      autoboot: false
+    }
   };
 };

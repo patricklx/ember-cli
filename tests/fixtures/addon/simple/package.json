@@ -8,6 +8,7 @@
     "paths": ["./lib/ember-super-button"]
   },
   "devDependencies": {
+    "ember-resolver": "^5.0.1",
     "ember-cli": "latest",
     "ember-random-addon": "latest",
     "ember-non-root-addon": "latest",
@@ -16,7 +17,7 @@
     "ember-before-blueprint-addon": "latest",
     "ember-after-blueprint-addon": "latest",
     "ember-devDeps-addon": "latest",
-    "ember-addon-with-dependencies": "latest"
+    "ember-addon-with-dependencies": "latest",
+    "loader.js": "latest"
   }
 }
-

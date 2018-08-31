@@ -1,100 +1,127 @@
 'use strict';
 
-var fs      = require('fs-extra');
-var path    = require('path');
-var Project = require('../../../lib/models/project');
-var Addon   = require('../../../lib/models/addon');
-var Promise = require('../../../lib/ext/promise');
-var expect  = require('chai').expect;
-var remove  = Promise.denodeify(fs.remove);
-var tmp     = require('tmp-sync');
-var path    = require('path');
-var findWhere = require('lodash/collection/find');
-var MockUI = require('../../helpers/mock-ui');
+const fs = require('fs-extra');
+const path = require('path');
+const Project = require('../../../lib/models/project');
+const Addon = require('../../../lib/models/addon');
+const RSVP = require('rsvp');
+const expect = require('chai').expect;
+let remove = RSVP.denodeify(fs.remove);
+const findWhere = require('ember-cli-lodash-subset').find;
+const MockUI = require('console-ui/mock');
+const MockCLI = require('../../helpers/mock-cli');
+const mkTmpDirIn = require('../../../lib/utilities/mk-tmp-dir-in');
 
-var root    = process.cwd();
-var tmproot = path.join(root, 'tmp');
+const broccoli = require('broccoli-builder');
+const walkSync = require('walk-sync');
+const td = require('testdouble');
 
-var fixturePath = path.resolve(__dirname, '../../fixtures/addon');
+let root = process.cwd();
+let tmproot = path.join(root, 'tmp');
+
+let fixturePath = path.resolve(__dirname, '../../fixtures/addon');
+const ensurePosixPath = require('ensure-posix-path');
 
 describe('models/addon.js', function() {
-  var addon, project, projectPath;
+  let addon, project, projectPath;
 
   describe('root property', function() {
     it('is required', function() {
-      expect(function() {
-        var TheAddon = Addon.extend({root:undefined});
+      expect(() => {
+        let TheAddon = Addon.extend({ root: undefined });
         new TheAddon();
       }).to.throw(/root/);
     });
   });
 
+  describe('old core object compat', function() {
+    it('treeGenerator works without .project', function() {
+      let warning;
+      let TheAddon = Addon.extend({
+        name: 'such name',
+        root: path.resolve(fixturePath, 'simple'),
+        _warn(message) {
+          warning = `${message}`;
+        },
+      });
+      let addon = new TheAddon();
+      expect(() => {
+        addon.treeGenerator('foo');
+      }).to.not.throw();
+      expect(warning).to.match(/Addon: `such name` is missing addon.project/);
+    });
+  });
+
   describe('treePaths and treeForMethods', function() {
-    var FirstAddon, SecondAddon;
+    let FirstAddon, SecondAddon;
 
     beforeEach(function() {
       projectPath = path.resolve(fixturePath, 'simple');
-      var packageContents = require(path.join(projectPath, 'package.json'));
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let cli = new MockCLI();
 
-      project = new Project(projectPath, packageContents);
+      project = new Project(projectPath, packageContents, cli.ui, cli);
 
       FirstAddon = Addon.extend({
         name: 'first',
         root: projectPath,
 
-        init: function() {
+        init() {
+          this._super.apply(this, arguments);
           this.treePaths.vendor = 'blazorz';
           this.treeForMethods.public = 'huzzah!';
-        }
+        },
       });
 
       SecondAddon = Addon.extend({
         name: 'first',
         root: projectPath,
 
-        init: function() {
+        init() {
+          this._super.apply(this, arguments);
           this.treePaths.vendor = 'blammo';
           this.treeForMethods.public = 'boooo';
-        }
+        },
       });
 
     });
 
     describe('.jshintAddonTree', function() {
-      var addon;
+      let addon;
 
       beforeEach(function() {
-        addon = new FirstAddon(project);
+        addon = new FirstAddon(project, project);
 
         // TODO: fix config story...
         addon.app = {
           options: { jshintrc: {} },
-          addonLintTree: function(type, tree) { return tree; }
+          addonLintTree(type, tree) { return tree; },
         };
 
-        addon.jshintTrees = function(){};
+        addon.jshintTrees = function() {};
 
       });
 
       it('uses the fullPath', function() {
-        var addonPath;
+        let addonPath;
         addon.addonJsFiles = function(_path) {
           addonPath = _path;
+          return _path;
         };
 
-        var root = path.join(fixturePath, 'with-styles');
+        let root = path.join(fixturePath, 'with-styles');
         addon.root = root;
 
         addon.jshintAddonTree();
-        expect(addonPath).to.eql(path.join(root, 'addon'));
+        expect(addonPath).to.eql(ensurePosixPath(path.join(root, 'addon')));
       });
 
       it('lints the files before preprocessing', function() {
         addon.preprocessJs = function() {
-          expect(false, 'should not preprocess files').to.eql(true);
+          throw new Error('should not preprocess files');
         };
 
-        var root = path.join(fixturePath, 'with-styles');
+        let root = path.join(fixturePath, 'with-styles');
         addon.root = root;
 
         addon.jshintAddonTree();
@@ -103,97 +130,46 @@ describe('models/addon.js', function() {
     });
 
     it('modifying a treePath does not affect other addons', function() {
-      var first = new FirstAddon(project);
-      var second = new SecondAddon(project);
+      let first = new FirstAddon(project);
+      let second = new SecondAddon(project);
 
       expect(first.treePaths.vendor).to.equal('blazorz');
       expect(second.treePaths.vendor).to.equal('blammo');
     });
 
     it('modifying a treeForMethod does not affect other addons', function() {
-      var first = new FirstAddon(project);
-      var second = new SecondAddon(project);
+      let first = new FirstAddon(project);
+      let second = new SecondAddon(project);
 
       expect(first.treeForMethods.public).to.equal('huzzah!');
       expect(second.treeForMethods.public).to.equal('boooo');
     });
   });
 
-  describe('resolvePath', function() {
-    beforeEach(function() {
-      addon = {
-        pkg: {
-          'ember-addon': {
-            'main': ''
-          }
-        },
-        path: ''
-      };
-    });
-
-    it('adds .js if not present', function() {
-      addon.pkg['ember-addon']['main'] = 'index';
-      var resolvedFile = path.basename(Addon.resolvePath(addon));
-      expect(resolvedFile).to.equal('index.js');
-    });
-
-    it('doesn\'t add .js if it is .js', function() {
-      addon.pkg['ember-addon']['main'] = 'index.js';
-      var resolvedFile = path.basename(Addon.resolvePath(addon));
-      expect(resolvedFile).to.equal('index.js');
-    });
-
-    it('doesn\'t add .js if it has another extension', function() {
-      addon.pkg['ember-addon']['main'] = 'index.coffee';
-      var resolvedFile = path.basename(Addon.resolvePath(addon));
-      expect(resolvedFile).to.equal('index.coffee');
-    });
-
-    it('allows lookup of non-`index.js` `main` entry points', function() {
-      delete addon.pkg['ember-addon'];
-      addon.pkg['main'] = 'some/other/path.js';
-
-      var resolvedFile = Addon.resolvePath(addon);
-      expect(resolvedFile).to.equal(path.join(process.cwd(), 'some/other/path.js'));
-    });
-
-    it('falls back to `index.js` if `main` and `ember-addon` are not found', function() {
-      delete addon.pkg['ember-addon'];
-
-      var resolvedFile = Addon.resolvePath(addon);
-      expect(resolvedFile).to.equal(path.join(process.cwd(), 'index.js'));
-    });
-
-    it('falls back to `index.js` if `main` and `ember-addon.main` are not found', function() {
-      delete addon.pkg['ember-addon'].main;
-
-      var resolvedFile = Addon.resolvePath(addon);
-      expect(resolvedFile).to.equal(path.join(process.cwd(), 'index.js'));
-    });
-  });
-
   describe('initialized addon', function() {
     this.timeout(40000);
-    before(function() {
+    beforeEach(function() {
       projectPath = path.resolve(fixturePath, 'simple');
-      var packageContents = require(path.join(projectPath, 'package.json'));
-      project = new Project(projectPath, packageContents);
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let ui = new MockUI();
+      let cli = new MockCLI({ ui });
+      project = new Project(projectPath, packageContents, ui, cli);
       project.initializeAddons();
     });
 
     describe('generated addon', function() {
       beforeEach(function() {
-        addon = findWhere(project.addons, { name: 'Ember CLI Generated with export' });
+        addon = findWhere(project.addons, { name: 'ember-generated-with-export-addon' });
 
         // Clear the caches
         delete addon._moduleName;
       });
 
-      it('sets it\'s project', function() {
+      it('sets its project', function() {
         expect(addon.project.name).to.equal(project.name);
       });
 
-      it('sets it\'s parent', function() {
+      it('sets its parent', function() {
         expect(addon.parent.name).to.equal(project.name);
       });
 
@@ -205,135 +181,105 @@ describe('models/addon.js', function() {
         expect(addon.pkg).to.not.equal(undefined);
       });
 
-      describe('trees for it\'s treePaths', function() {
+      describe('trees for its treePaths', function() {
         it('app', function() {
-          var tree = addon.treeFor('app');
+          let tree = addon.treeFor('app');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
 
         it('styles', function() {
-          var tree = addon.treeFor('styles');
+          let tree = addon.treeFor('styles');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
 
         it('templates', function() {
-          var tree = addon.treeFor('templates');
+          let tree = addon.treeFor('templates');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
 
         it('addon-templates', function() {
-          var tree = addon.treeFor('addon-templates');
+          let tree = addon.treeFor('addon-templates');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
 
         it('vendor', function() {
-          var tree = addon.treeFor('vendor');
+          let tree = addon.treeFor('vendor');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
 
         it('addon', function() {
-          var app = {
+          let app = {
             importWhitelist: {},
             options: {},
           };
           addon.registry = {
             app: addon,
-            load: function() {
+            load() {
               return [{
-                toTree: function(tree) {
+                toTree(tree) {
                   return tree;
-                }
+                },
               }];
             },
 
-            extensionsForType: function() {
+            extensionsForType() {
               return ['js'];
-            }
+            },
           };
           addon.app = app;
-          var tree = addon.treeFor('addon');
+          let tree = addon.treeFor('addon');
           expect(typeof (tree.read || tree.rebuild)).to.equal('function');
         });
       });
 
       describe('custom treeFor methods', function() {
         it('can define treeForApp', function() {
-          var called = false;
-
-          addon.treeForApp = function() {
-            called = true;
-          };
-
+          addon.treeForApp = td.function();
           addon.treeFor('app');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForApp(), { ignoreExtraArgs: true });
         });
 
         it('can define treeForStyles', function() {
-          var called = false;
-
-          addon.treeForStyles = function() {
-            called = true;
-          };
-
+          addon.treeForStyles = td.function();
           addon.treeFor('styles');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForStyles(), { ignoreExtraArgs: true });
         });
 
         it('can define treeForVendor', function() {
-          var called = false;
-
-          addon.treeForVendor = function() {
-            called = true;
-          };
-
+          addon.treeForVendor = td.function();
           addon.treeFor('vendor');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForVendor(), { ignoreExtraArgs: true });
         });
 
         it('can define treeForTemplates', function() {
-          var called = false;
-
-          addon.treeForTemplates = function() {
-            called = true;
-          };
-
+          addon.treeForTemplates = td.function();
           addon.treeFor('templates');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForTemplates(), { ignoreExtraArgs: true });
         });
 
         it('can define treeForAddonTemplates', function() {
-          var called = false;
-
-          addon.treeForAddonTemplates = function() {
-            called = true;
-          };
-
+          addon.treeForAddonTemplates = td.function();
           addon.treeFor('addon-templates');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForAddonTemplates(), { ignoreExtraArgs: true });
         });
 
         it('can define treeForPublic', function() {
-          var called = false;
-
-          addon.treeForPublic = function() {
-            called = true;
-          };
-
+          addon.treeForPublic = td.function();
           addon.treeFor('public');
-          expect(called).to.equal(true);
+          td.verify(addon.treeForPublic(), { ignoreExtraArgs: true });
         });
       });
     });
 
     describe('addon with dependencies', function() {
       beforeEach(function() {
-        addon = findWhere(project.addons, { name: 'Ember Addon With Dependencies' });
+        addon = findWhere(project.addons, { name: 'ember-addon-with-dependencies' });
       });
 
       it('returns a listing of all dependencies in the addon\'s package.json', function() {
-        var expected = {
+        let expected = {
           'ember-cli': 'latest',
-          'something-else': 'latest'
+          'something-else': 'latest',
         };
 
         expect(addon.dependencies()).to.deep.equal(expected);
@@ -341,44 +287,72 @@ describe('models/addon.js', function() {
     });
 
     it('must define a `name` property', function() {
-      var Foo = Addon.extend({ root: 'foo' });
+      let Foo = Addon.extend({ root: 'foo' });
 
-      expect(function() {
+      expect(() => {
         new Foo(project);
       }).to.throw(/An addon must define a `name` property./);
     });
 
     describe('isDevelopingAddon', function() {
-      var originalEnvValue, addon, project;
+      let originalEnvValue, addon, project;
 
       beforeEach(function() {
-        var MyAddon = Addon.extend({
+        let MyAddon = Addon.extend({
           name: 'test-project',
-          root: 'foo'
+          root: 'foo',
         });
 
-        var projectPath = path.resolve(fixturePath, 'simple');
-        var packageContents = require(path.join(projectPath, 'package.json'));
+        let projectPath = path.resolve(fixturePath, 'simple');
+        const packageContents = require(path.join(projectPath, 'package.json'));
+        let cli = new MockCLI();
 
-        project = new Project(projectPath, packageContents);
+        project = new Project(projectPath, packageContents, cli.ui, cli);
 
-        addon = new MyAddon(project);
+        addon = new MyAddon(project, project);
 
         originalEnvValue = process.env.EMBER_ADDON_ENV;
       });
 
       afterEach(function() {
-        if(originalEnvValue === undefined) {
+        if (originalEnvValue === undefined) {
           delete process.env.EMBER_ADDON_ENV;
         } else {
           process.env.EMBER_ADDON_ENV = originalEnvValue;
         }
+
+        delete process.env.EMBER_CLI_IGNORE_ADDON_NAME_MISMATCH;
       });
 
       it('returns true when `EMBER_ADDON_ENV` is set to development', function() {
         process.env.EMBER_ADDON_ENV = 'development';
 
         expect(addon.isDevelopingAddon(), 'addon is being developed').to.eql(true);
+      });
+
+      it('throws when the addon name is prefixed in package.json and not in index.js', function() {
+        process.env.EMBER_ADDON_ENV = 'development';
+        project.root = 'foo';
+        project.name = () => ('@foo/my-addon');
+        addon.name = 'my-addon';
+        expect(() => addon.isDevelopingAddon()).to.throw(/Your names in package.json and index.js should match*/);
+      });
+
+      it('does not throw for a mismatched addon name when process.env.EMBER_CLI_IGNORE_ADDON_NAME_MISMATCH is set', function() {
+        process.env.EMBER_CLI_IGNORE_ADDON_NAME_MISMATCH = 'true';
+        process.env.EMBER_ADDON_ENV = 'development';
+        project.root = 'foo';
+        project.name = () => ('@foo/my-addon');
+        addon.name = 'my-addon';
+        expect(addon.isDevelopingAddon()).to.eql(true);
+      });
+
+      it('throws an error if addon name is different in package.json and index.js ', function() {
+        process.env.EMBER_ADDON_ENV = 'development';
+        project.root = 'foo';
+        project.name = () => ('foo-my-addon');
+        addon.name = 'my-addon';
+        expect(() => addon.isDevelopingAddon()).to.throw(/Your names in package.json and index.js should match*/);
       });
 
       it('returns false when `EMBER_ADDON_ENV` is not set', function() {
@@ -401,31 +375,154 @@ describe('models/addon.js', function() {
       });
     });
 
+    describe('findOwnAddonByName', function() {
+      let ThisAddon = Addon.extend({
+        root: 'foo',
+        name: 'this-addon',
+      });
+
+      it('it has the given addon', function() {
+        let addon = new ThisAddon();
+        let ownAddon = { name: 'my-cool-addon' };
+        addon.addons = [ownAddon];
+        expect(addon.findOwnAddonByName('my-cool-addon')).to.eql(ownAddon);
+      });
+
+      it('it does not have the given addon', function() {
+        let addon = new ThisAddon();
+        let ownAddon = { name: 'my-cool-addon' };
+        addon.addons = [ownAddon];
+        expect(addon.findOwnAddonByName('my-non-existentcool-addon')).to.eql(undefined);
+      });
+    });
+
+    describe('hintingEnabled', function() {
+      /**
+        Tests the various configuration options that affect the hintingEnabled method.
+
+       | configuration | test1 | test2 | test3 | test4 | test5 |
+       | ------------- | ----- | ----- | ----- | ----- | ----- |
+       | hinting       | true  | true  | true  | false | unset |
+       | environment   | dev   | N/A   | prod  | N\A   | N\A   |
+       | test_command  | set   | set   | unset | set   | set   |
+       | RESULT        | true  | true  | false | false | true  |
+
+        @method hintingEnabled
+       */
+
+      let originalEnvValue, originalEmberEnvValue, originalTestCommand, addon, project;
+
+      beforeEach(function() {
+        let MyAddon = Addon.extend({
+          name: 'test-project',
+          root: 'foo',
+        });
+
+        let projectPath = path.resolve(fixturePath, 'simple');
+        const packageContents = require(path.join(projectPath, 'package.json'));
+        let cli = new MockCLI();
+
+        project = new Project(projectPath, packageContents, cli.ui, cli);
+
+        addon = new MyAddon(project);
+
+        originalEmberEnvValue = process.env.EMBER_ENV;
+        originalEnvValue = process.env.EMBER_ADDON_ENV;
+        originalTestCommand = process.env.EMBER_CLI_TEST_COMMAND;
+      });
+
+      afterEach(function() {
+        addon.app = {
+          options: {},
+        };
+
+        if (originalEnvValue === undefined) {
+          delete process.env.EMBER_ADDON_ENV;
+        } else {
+          process.env.EMBER_ADDON_ENV = originalEnvValue;
+        }
+
+        if (originalTestCommand === undefined) {
+          delete process.env.EMBER_CLI_TEST_COMMAND;
+        } else {
+          process.env.EMBER_CLI_TEST_COMMAND = originalTestCommand;
+        }
+
+        if (originalEmberEnvValue === undefined) {
+          delete process.env.EMBER_ENV;
+        } else {
+          process.env.EMBER_ENV = originalEmberEnvValue;
+        }
+      });
+
+      it('returns true when `EMBER_ENV` is not set to production and options.hinting is true', function() {
+        process.env.EMBER_ENV = 'development';
+
+        addon.app = {
+          options: { hinting: true },
+        };
+
+        expect(addon.hintingEnabled()).to.be.true;
+      });
+
+      it('returns true when `EMBER_CLI_TEST_COMMAND` is set and options.hinting is true', function() {
+        addon.app = {
+          options: { hinting: true },
+        };
+
+        expect(addon.hintingEnabled()).to.be.true;
+      });
+
+      it('returns false when `EMBER_ENV` is set to production, `EMBER_CLI_TEST_COMMAND` is unset and options.hinting is true', function() {
+        process.env.EMBER_ENV = 'production';
+        delete process.env.EMBER_CLI_TEST_COMMAND;
+
+        addon.app = {
+          options: { hinting: true },
+        };
+
+        expect(addon.hintingEnabled()).to.be.false;
+      });
+
+      it('returns false when options.hinting is set to false', function() {
+        addon.app = {
+          options: { hinting: false },
+        };
+
+        expect(addon.hintingEnabled()).to.be.false;
+      });
+
+      it('returns true when options.hinting is not set', function() {
+        expect(addon.hintingEnabled()).to.be.ok;
+      });
+    });
+
     describe('treeGenerator', function() {
       it('watch tree when developing the addon itself', function() {
         addon.isDevelopingAddon = function() { return true; };
 
-        var tree = addon.treeGenerator('foo/bar');
+        let tree = addon.treeGenerator('foo/bar');
 
-        expect(tree).to.equal('foo/bar');
+        expect(tree.__broccoliGetInfo__()).to.have.property('watched', true);
       });
 
-      it('uses unwatchedTree when not developing the addon itself', function() {
+      it('uses UnwatchedDir when not developing the addon itself', function() {
         addon.isDevelopingAddon = function() { return false; };
 
-        var tree = addon.treeGenerator('foo/bar');
+        let tree = addon.treeGenerator('foo/bar');
 
-        expect(tree.read()).to.equal('foo/bar');
+        expect(tree.__broccoliGetInfo__()).to.have.property('watched', false);
       });
     });
 
     describe('blueprintsPath', function() {
-      var tmpdir;
+      let tmpdir;
 
       beforeEach(function() {
-        tmpdir  = tmp.in(tmproot);
-
-        addon.root = tmpdir;
+        return mkTmpDirIn(tmproot).then(function(dir) {
+          tmpdir = dir;
+          addon.root = tmpdir;
+        });
       });
 
       afterEach(function() {
@@ -433,16 +530,16 @@ describe('models/addon.js', function() {
       });
 
       it('returns undefined if the `blueprint` folder does not exist', function() {
-        var returnedPath = addon.blueprintsPath();
+        let returnedPath = addon.blueprintsPath();
 
         expect(returnedPath).to.equal(undefined);
       });
 
       it('returns blueprint path if the folder exists', function() {
-        var blueprintsDir = path.join(tmpdir, 'blueprints');
+        let blueprintsDir = path.join(tmpdir, 'blueprints');
         fs.mkdirSync(blueprintsDir);
 
-        var returnedPath = addon.blueprintsPath();
+        let returnedPath = addon.blueprintsPath();
 
         expect(returnedPath).to.equal(blueprintsDir);
       });
@@ -451,14 +548,14 @@ describe('models/addon.js', function() {
     describe('config', function() {
       it('returns undefined if `config/environment.js` does not exist', function() {
         addon.root = path.join(fixturePath, 'no-config');
-        var result = addon.config();
+        let result = addon.config();
 
         expect(result).to.equal(undefined);
       });
 
       it('returns blueprint path if the folder exists', function() {
         addon.root = path.join(fixturePath, 'with-config');
-        var appConfig = {};
+        let appConfig = {};
 
         addon.config('development', appConfig);
 
@@ -467,92 +564,347 @@ describe('models/addon.js', function() {
     });
   });
 
-  describe('Addon.lookup', function() {
-    it('should throw an error if an addon could not be found', function() {
-      var addon = {
-        path: 'foo/bar-baz/blah/doesnt-exist',
-        pkg: {
-          name: 'dummy-addon',
-          'ember-addon': { }
-        }
-      };
-
-      expect(function() {
-        Addon.lookup(addon);
-      }).to.throw(/The `dummy-addon` addon could not be found at `foo\/bar-baz\/blah\/doesnt-exist`\./);
-    });
-  });
-
   describe('compileTemplates', function() {
     beforeEach(function() {
       projectPath = path.resolve(fixturePath, 'simple');
-      var packageContents = require(path.join(projectPath, 'package.json'));
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let cli = new MockCLI();
 
-      project = new Project(projectPath, packageContents);
+      project = new Project(projectPath, packageContents, cli.ui, cli);
 
       project.initializeAddons();
 
-      addon = findWhere(project.addons, { name: 'Ember CLI Generated with export' });
-    });
-
-    it('should throw a useful error if a template compiler is not present -- non-pods', function() {
-      addon.root = path.join(fixturePath, 'with-addon-templates');
-
-      expect(function() {
-        addon.compileTemplates();
-      }).to.throw(
-        'Addon templates were detected, but there ' +
-        'are no template compilers registered for `' + addon.name + '`. ' +
-        'Please make sure your template precompiler (commonly `ember-cli-htmlbars`) ' +
-        'is listed in `dependencies` (NOT `devDependencies`) in ' +
-        '`' + addon.name + '`\'s `package.json`.'
-      );
-    });
-
-    it('should throw a useful error if a template compiler is not present -- pods', function() {
-      addon.root = path.join(fixturePath, 'with-addon-pod-templates');
-
-      expect(function() {
-        addon.compileTemplates();
-      }).to.throw(
-        'Addon templates were detected, but there ' +
-        'are no template compilers registered for `' + addon.name + '`. ' +
-        'Please make sure your template precompiler (commonly `ember-cli-htmlbars`) ' +
-        'is listed in `dependencies` (NOT `devDependencies`) in ' +
-        '`' + addon.name + '`\'s `package.json`.'
-      );
+      addon = findWhere(project.addons, { name: 'ember-generated-with-export-addon' });
     });
 
     it('should not throw an error if addon/templates is present but empty', function() {
       addon.root = path.join(fixturePath, 'with-empty-addon-templates');
 
-      expect(function() {
+      expect(() => {
         addon.compileTemplates();
       }).not.to.throw();
     });
   });
 
-  describe('addonDiscovery', function() {
-    var discovery, addon, ui;
+  describe('_fileSystemInfo', function() {
+    beforeEach(function() {
+      projectPath = path.resolve(fixturePath, 'simple');
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let cli = new MockCLI();
+
+      project = new Project(projectPath, packageContents, cli.ui, cli);
+
+      project.initializeAddons();
+
+      addon = findWhere(project.addons, { name: 'ember-generated-with-export-addon' });
+    });
+
+    it('should not call _getAddonTemplatesTreeFiles when default treePath is used', function() {
+      let wasCalled = false;
+      addon._getAddonTemplatesTreeFiles = function() {
+        wasCalled = true;
+        return [];
+      };
+
+      addon._fileSystemInfo();
+
+      expect(wasCalled).to.not.be.ok;
+    });
+
+    it('should call _getAddonTemplatesTreeFiles when custom treePaths[\'addon-templates\'] is used', function() {
+      addon.treePaths['addon-templates'] = 'foo';
+      let wasCalled = false;
+      addon._getAddonTemplatesTreeFiles = function() {
+        wasCalled = true;
+        return [];
+      };
+
+      addon._fileSystemInfo();
+
+      expect(wasCalled).to.be.ok;
+    });
+
+    it('hasPodTemplates when pod templates found', function() {
+      addon._getAddonTreeFiles = function() {
+        return [
+          'foo-bar/',
+          'foo-bar/component.js',
+          'foo-bar/template.hbs',
+        ];
+      };
+
+      expect(addon._fileSystemInfo()).to.deep.equal({
+        hasJSFiles: true,
+        hasTemplates: true,
+        hasPodTemplates: true,
+      });
+    });
+
+    it('does not hasPodTemplates when no pod templates found', function() {
+      addon._getAddonTreeFiles = function() {
+        return [
+          'templates/',
+          'templates/components/',
+          'templates/components/foo-bar.hbs',
+        ];
+      };
+
+      expect(addon._fileSystemInfo()).to.deep.equal({
+        hasJSFiles: false,
+        hasTemplates: true,
+        hasPodTemplates: false,
+      });
+    });
+
+    it('does not hasPodTemplates when no pod templates found (pod-like structure in `addon/templates/`)', function() {
+      addon._getAddonTreeFiles = function() {
+        return [
+          'templates/',
+          // this doesn't need "pod template handling" because
+          // it is actually in the addon-templates tree
+          'templates/foo-bar/template.hbs',
+        ];
+      };
+
+      expect(addon._fileSystemInfo()).to.deep.equal({
+        hasJSFiles: false,
+        hasTemplates: true,
+        hasPodTemplates: false,
+      });
+    });
+
+    it('does not hasTemplates when no templates found', function() {
+      addon._getAddonTreeFiles = function() {
+        return [
+          'components/',
+          'components/foo-bar.js',
+          'templates/',
+          'templates/components/',
+        ];
+      };
+
+      expect(addon._fileSystemInfo()).to.deep.equal({
+        hasJSFiles: true,
+        hasTemplates: false,
+        hasPodTemplates: false,
+      });
+    });
+
+    it('does not hasJSFiles when none found', function() {
+      addon._getAddonTreeFiles = function() {
+        return [
+          'components/',
+          'templates/',
+          'templates/components/',
+          'styles/foo.css',
+        ];
+      };
+
+      expect(addon._fileSystemInfo()).to.deep.equal({
+        hasJSFiles: false,
+        hasTemplates: false,
+        hasPodTemplates: false,
+      });
+    });
+  });
+
+  describe('packageInfoCache', function() {
+    let packageInfoCache, addon, ui;
 
     beforeEach(function() {
       projectPath = path.resolve(fixturePath, 'simple');
-      var packageContents = require(path.join(projectPath, 'package.json'));
+      const packageContents = require(path.join(projectPath, 'package.json'));
 
       ui = new MockUI();
-      project = new Project(projectPath, packageContents, ui);
+      let cli = new MockCLI({ ui });
+      project = new Project(projectPath, packageContents, ui, cli);
 
-      var AddonTemp = Addon.extend({
+      let AddonTemp = Addon.extend({
         name: 'temp',
-        root: 'foo'
+        root: 'foo',
       });
 
       addon = new AddonTemp(project, project);
-      discovery = addon.addonDiscovery;
+      packageInfoCache = addon.packageInfoCache;
     });
 
-    it('is provided with the addon\'s `ui` object', function() {
-      expect(discovery.ui).to.equal(ui);
+    it('is provided with the parent\'s `packageInfoCache` object', function() {
+      expect(packageInfoCache).to.equal(project.packageInfoCache);
+    });
+  });
+
+  describe('treeForStyles', function() {
+    let builder, addon;
+
+    beforeEach(function() {
+      projectPath = path.resolve(fixturePath, 'with-app-styles');
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let cli = new MockCLI();
+
+      project = new Project(projectPath, packageContents, cli.ui, cli);
+
+      let BaseAddon = Addon.extend({
+        name: 'test-project',
+        root: projectPath,
+      });
+
+      addon = new BaseAddon(project, project);
+    });
+
+    afterEach(function() {
+      if (builder) {
+        return builder.cleanup();
+      }
+    });
+
+    it('should move files in the root of the addons app/styles tree into the app/styles path', function() {
+      builder = new broccoli.Builder(addon.treeFor('styles'));
+
+      return builder.build()
+        .then(function(results) {
+          let outputPath = results.directory;
+
+          let expected = [
+            'app/',
+            'app/styles/',
+            'app/styles/foo-bar.css',
+          ];
+
+          expect(walkSync(outputPath)).to.eql(expected);
+        });
+    });
+  });
+
+  describe('._eachProjectAddonInvoke', function() {
+    beforeEach(function() {
+      let MyAddon = Addon.extend({
+        name: 'test-project',
+        root: 'foo',
+      });
+
+      let projectPath = path.resolve(fixturePath, 'simple');
+      const packageContents = require(path.join(projectPath, 'package.json'));
+      let cli = new MockCLI();
+
+      project = new Project(projectPath, packageContents, cli.ui, cli);
+      addon = new MyAddon(project, project);
+    });
+
+    it('should invoke the method on each of the project addons', function() {
+      let counter = 0;
+      project.addons = [
+        { foo(num) { counter += num; } },
+        { foo(num) { counter += num; } },
+      ];
+
+      addon._eachProjectAddonInvoke('foo', [1]);
+      expect(counter).to.eql(2);
+    });
+
+    it('should provide default arguments if none are specified', function() {
+      let counter = 0;
+      project.addons = [
+        { foo() { counter += 1; } },
+        { foo() { counter += 1; } },
+      ];
+
+      addon._eachProjectAddonInvoke('foo');
+      expect(counter).to.eql(2);
+    });
+  });
+
+  describe('addon tree caching', function() {
+    let projectPath = path.resolve(fixturePath, 'simple');
+    const packageContents = require(path.join(projectPath, 'package.json'));
+
+    function createAddon(Addon) {
+      let cli = new MockCLI();
+      let project = new Project(projectPath, packageContents, cli.ui, cli);
+      return new Addon(project, project);
+    }
+
+    describe('cacheKeyForTree', function() {
+      it('returns null if `treeForApp` methods are implemented for the app tree', function() {
+        let addon = createAddon(Addon.extend({
+          name: 'test-project',
+          root: 'foo',
+          treeForApp() { },
+        }));
+
+        expect(addon.cacheKeyForTree('app')).to.equal(null);
+      });
+
+      it('returns null if `compileAddon` methods are implemented for the addon tree', function() {
+        let addon = createAddon(Addon.extend({
+          name: 'test-project',
+          root: 'foo',
+          compileAddon() { },
+        }));
+
+        expect(addon.cacheKeyForTree('addon')).to.equal(null);
+      });
+
+      it('returns null if `treeForMethods` is modified', function() {
+        let addon = createAddon(Addon.extend({
+          name: 'test-project',
+          root: 'foo',
+          init() {
+            this._super && this._super.init.apply(this, arguments);
+
+            this.treeForMethods['app'] = 'treeForZOMG_WHY!?!';
+          },
+        }));
+
+        expect(addon.cacheKeyForTree('app')).to.equal(null);
+      });
+
+      it('returns stable value for repeated invocations', function() {
+        let addon = createAddon(Addon.extend({
+          name: 'test-project',
+          root: 'foo',
+        }));
+
+        let firstResult = addon.cacheKeyForTree('app');
+        let secondResult = addon.cacheKeyForTree('app');
+
+        expect(firstResult).to.equal(secondResult);
+      });
+    });
+
+    describe('treeFor caching', function() {
+      it('defining custom treeForAddon without modifying cacheKeyForTree does not cache', function() {
+        let addon = createAddon(Addon.extend({
+          name: 'test-project',
+          root: path.join(projectPath, 'node_modules', 'ember-generated-with-export-addon'),
+          treeForAddon(tree) {
+            return tree;
+          },
+        }));
+
+        let firstTree = addon.treeFor('addon');
+        let secondTree = addon.treeFor('addon');
+
+        expect(firstTree).not.to.equal(secondTree);
+      });
+
+      it('defining custom cacheKeyForTree allows addon control of cache', function() {
+        let addonProto = {
+          name: 'test-project',
+          root: path.join(projectPath, 'node_modules', 'ember-generated-with-export-addon'),
+          treeForAddon(tree) {
+            return tree;
+          },
+        };
+        addonProto.cacheKeyForTree = function(type) {
+          return type;
+        };
+
+        let addon = createAddon(Addon.extend(addonProto));
+        let firstTree = addon.treeFor('addon');
+        let secondTree = addon.treeFor('addon');
+
+        expect(firstTree).to.equal(secondTree);
+      });
     });
   });
 });

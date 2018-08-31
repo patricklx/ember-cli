@@ -1,11 +1,11 @@
 'use strict';
 
-var SilentError    = require('silent-error');
-var SilentErrorLib = require('../../../lib/errors/silent');
-var expect         = require('chai').expect;
+const SilentError = require('silent-error');
+const expect = require('chai').expect;
 
 describe('SilentError', function() {
   it('return silent-error and print a deprecation', function() {
+    const SilentErrorLib = require('../../../lib/errors/silent');
     expect(SilentErrorLib, 'returns silent-error').to.equal(SilentError);
   });
 });

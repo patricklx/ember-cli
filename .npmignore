@@ -1,0 +1,10 @@
+/assets/
+/dev/
+/docs/
+/tests/*
+/tests/*/
+!/tests/helpers/
+/tmp/
+/.*
+*.log
+!/.travis.yml

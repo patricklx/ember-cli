@@ -1,36 +1,36 @@
-# http://www.appveyor.com/docs/appveyor-yml
-
-# Fix line endings in Windows. (runs before repo cloning)
-init:
-  - git config --global core.autocrlf true
+# https://www.appveyor.com/docs/appveyor-yml/
 
 # Test against these versions of Node.js.
 environment:
+  MOCHA_REPORTER: "mocha-appveyor-reporter"
   matrix:
-    - nodejs_version: "0.12"
+    - fast_finish: true
+    - nodejs_version: "6"
+    - nodejs_version: "8"
+    - nodejs_version: "10"
+
+branches:
+  only:
+    - master
+    - beta
+    - release
 
 # Install scripts. (runs after repo cloning)
 install:
-  # Get the latest stable version of Node 0.STABLE.latest
   - ps: Install-Product node $env:nodejs_version
-  # Install PhantomJS
-  - cinst PhantomJS -y
-  # Typical npm stuff.
-  - md C:\nc
-  - npm install -g npm@latest
-  # hide python so node-gyp won't try to build native extentions
-  - rename C:\Python27 Python27hidden
-  # Workaround https://github.com/npm/npm/wiki/Troubleshooting#upgrading-on-windows
-  - set PATH=%APPDATA%\npm;%PATH%
-  - npm config set cache C:\nc
-  - npm version
-  - npm install
+  - appveyor-retry npm i -g npm@^4
+  - appveyor-retry yarn
+  - appveyor-retry yarn add mocha-appveyor-reporter # must be installed locally.
+
+cache:
+  - '%LOCALAPPDATA%\Yarn'
+  - '%APPDATA%\Roaming\bower'
 
 # Post-install test scripts.
 test_script:
   # Output useful info for debugging.
-  - npm version
-  - cmd: npm run test-all
+  - git rev-parse HEAD
+  - cmd: yarn run test:all
 
 # Don't actually build.
 build: off

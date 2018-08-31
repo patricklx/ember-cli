@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 'use strict';
 
+// This file is intentionally left compatible with older versions of
+// node for the following scenario:
+// * user runs node 0.12
+// * user is still running an older node 0.12 compatible ember-cli locally
+// * user unintentionally installs ember-cli latest globally
+
 // Provide a title to the process in `ps`
 process.title = 'ember';
 
+// require('time-require');
 var resolve = require('resolve');
 var exit = require('exit');
 
@@ -26,7 +33,8 @@ resolve('ember-cli', {
   cli({
     cliArgs: process.argv.slice(2),
     inputStream: process.stdin,
-    outputStream: process.stdout
+    outputStream: process.stdout,
+    errorStream: process.stderr
   }).then(function(result) {
     var exitCode = typeof result === 'object' ? result.exitCode : result;
     exit(exitCode);
