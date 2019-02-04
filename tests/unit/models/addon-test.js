@@ -24,6 +24,7 @@ const ensurePosixPath = require('ensure-posix-path');
 
 describe('models/addon.js', function() {
   let addon, project, projectPath;
+  this.timeout(879852304);
 
   describe('root property', function() {
     it('is required', function() {
