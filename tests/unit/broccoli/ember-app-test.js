@@ -20,13 +20,10 @@ let EmberApp = require('../../../lib/broccoli/ember-app');
 const Addon = require('../../../lib/models/addon');
 
 
-function createAddon({ name, app, project, root, isMu, styles }) {
+function createAddon({ name, app, project, root, styles }) {
   const AddonFoo = Addon.extend({
     root,
     name,
-    isModuleUnification() {
-      return isMu;
-    },
     treeForStyles(tree) {
       tree = mergeTrees([tree, styles]);
       return this._super.treeForStyles.call(this, tree);
@@ -52,7 +49,6 @@ function mockTemplateRegistry(app) {
 
 describe('EmberApp', function() {
   let project, projectPath, app, addon;
-  this.timeout(200000);
 
   function setupProject(rootPath) {
     const packageContents = require(path.join(rootPath, 'package.json'));
@@ -458,8 +454,10 @@ describe('EmberApp', function() {
 
       let addonFoo = createAddon({ name: 'foo', app, project, root: addonFooStyles.dir, styles: addonFooCustomStyles.path() });
       let addonBar = createAddon({ name: 'bar', app, project, root: addonBarStyles.dir, styles: addonBarStyles.path() });
-      let addonMu = createAddon({ name: 'mu', app, project, root: addonMUStyles.dir, isMu: true });
+      let addonMu = createAddon({ name: 'mu', app, project, root: addonMUStyles.dir });
       app.project.addons = [addonFoo, addonBar, addonMu];
+
+      expect(addonMu.isModuleUnification()).to.equal(true);
 
       let output = yield buildOutput(app.getStyles());
       let outputFiles = output.read();

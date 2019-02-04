@@ -24,7 +24,6 @@ const ensurePosixPath = require('ensure-posix-path');
 
 describe('models/addon.js', function() {
   let addon, project, projectPath;
-  this.timeout(879852304);
 
   describe('root property', function() {
     it('is required', function() {
@@ -758,7 +757,6 @@ describe('models/addon.js', function() {
         name: 'test-project',
         root: projectPath,
         isModuleUnification() {
-          const { isExperimentEnabled } = require('../../../lib/experiments');
           if (isExperimentEnabled('MODULE_UNIFICATION')) {
             return true;
           }
